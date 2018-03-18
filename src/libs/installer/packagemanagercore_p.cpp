@@ -996,6 +996,7 @@ void PackageManagerCorePrivate::writeMaintenanceToolBinary(QFile *const input, q
 
     QTemporaryFile out;
     QInstaller::openForWrite(&out); // throws an exception in case of error
+    qDebug() << "opened temporary for write: " << out.fileName();
 
     if (!input->seek(0))
         throw Error(tr("Failed to seek in file %1: %2").arg(input->fileName(), input->errorString()));
@@ -1297,11 +1298,39 @@ void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOper
                         "deliberately not used. Running as installer requires to read the "
                         "resources from the application binary.";
                 }
-                throw Error();
+#ifdef Q_OS_OSX
+                // On Mac, data is always in a separate file so that the binary can be signed
+                QString binaryName = isInstaller() ? installerBinaryPath() : maintenanceToolName();
+                QDir dataPath(QFileInfo(binaryName).dir());
+                dataPath.cdUp();
+                dataPath.cd(QLatin1String("Resources"));
+                input.setFileName(dataPath.filePath(QLatin1String("installer.dat")));
+
+                QInstaller::openForRead(&input);
+                layout = BinaryContent::binaryLayout(&input, BinaryContent::MagicCookie);
+
+                if (!newBinaryWritten) {
+                    newBinaryWritten = true;
+                    QFile tmp(binaryName);
+                    QInstaller::openForRead(&tmp);
+                    writeMaintenanceToolBinary(&tmp, tmp.size(), true);
+                }
+#else
+                input.setFileName(isInstaller() ? installerBinaryPath() : maintenanceToolName());
+                QInstaller::openForRead(&input);
+                layout = BinaryContent::binaryLayout(&input, BinaryContent::MagicCookie);
+                if (!newBinaryWritten) {
+                    newBinaryWritten = true;
+                    writeMaintenanceToolBinary(&input, layout.endOfBinaryContent
+                        - layout.binaryContentSize, true);
+                }
+#endif
+//                throw Error();
+            } else {
+                input.setFileName(dataFile);
+                QInstaller::openForRead(&input);
+                layout = BinaryContent::binaryLayout(&input, BinaryContent::MagicCookieDat);
             }
-            input.setFileName(dataFile);
-            QInstaller::openForRead(&input);
-            layout = BinaryContent::binaryLayout(&input, BinaryContent::MagicCookieDat);
         } catch (const Error &/*error*/) {
 #ifdef Q_OS_OSX
             // On Mac, data is always in a separate file so that the binary can be signed
@@ -1390,8 +1419,12 @@ void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOper
         throw err;
     }
 
-    if (gainedAdminRights)
+    if (gainedAdminRights) {
+        qDebug() << "previously gained admin rights, now dropping.";
         m_core->dropAdminRights();
+    } else {
+        qDebug() << "was running normal rights";
+    }
 
     commitSessionOperations();
 

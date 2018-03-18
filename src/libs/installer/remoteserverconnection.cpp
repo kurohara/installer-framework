@@ -424,7 +424,7 @@ void RemoteServerConnection::handleQFSFileEngine(QIODevice *socket, const QStrin
     } else if (command == QLatin1String(Protocol::QAbstractFileEngineOpen)) {
         qint32 openMode;
         data >>openMode;
-        sendData(socket, m_engine->open(static_cast<QIODevice::OpenMode> (openMode)));
+        sendData(socket, m_engine->open(static_cast<QIODevice::OpenMode> (openMode) | QIODevice::Unbuffered));
     } else if (command == QLatin1String(Protocol::QAbstractFileEngineOwner)) {
         qint32 owner;
         data >>owner;
