@@ -55,7 +55,7 @@
 #define BUILDDATE "Build date: " __DATE__
 #define SHA "Installer Framework SHA1: " QUOTE(_GIT_SHA1_)
 static const char PLACEHOLDER[32] = "MY_InstallerCreateDateTime_MY";
-
+#include <QThread>
 int main(int argc, char *argv[])
 {
 #if defined(Q_OS_WIN)
@@ -206,16 +206,28 @@ int main(int argc, char *argv[])
         if (parser.isSet(QLatin1String(CommandLineOptions::NoProxy)))
             QNetworkProxyFactory::setUseSystemConfiguration(false);
 
-        if (parser.isSet(QLatin1String(CommandLineOptions::CheckUpdates)))
-            return UpdateChecker(argc, argv).check();
+        if (parser.isSet(QLatin1String(CommandLineOptions::CheckUpdates))) {
+            qDebug() << "going to check update: " << __FILE__ << ":" << __LINE__ ;
+            // QThread::sleep(60); // sleep for debugger
+            try {
+                return UpdateChecker(argc, argv).check();
+            } catch (const QInstaller::Error &e) {
+                qDebug() << "going to check update: " << __FILE__ << ":" << __LINE__ ;
+            }
+            return EXIT_FAILURE;
+        }
 
+        qDebug() << "going to check update: " << __FILE__ << ":" << __LINE__ ;
         if (QInstaller::isVerbose())
             std::cout << VERSION << std::endl << BUILDDATE << std::endl << SHA << std::endl;
 
+        qDebug() << "going to check update: " << __FILE__ << ":" << __LINE__ ;
         const SelfRestarter restarter(argc, argv);
+        qDebug() << "going to check update: " << __FILE__ << ":" << __LINE__ ;
         return InstallerBase(argc, argv).run();
 
     } catch (const QInstaller::Error &e) {
+        qDebug() << "going to check update: " << __FILE__ << ":" << __LINE__ ;
         std::cerr << qPrintable(e.message()) << std::endl;
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;

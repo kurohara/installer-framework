@@ -83,7 +83,9 @@ int UpdateChecker::check()
 
     SDKApp::registerMetaResources(manager.collectionByName("QResources"));
 
+    qDebug() << "going to check update:" << __LINE__;
     QInstaller::PackageManagerCore core(QInstaller::BinaryContent::MagicUpdaterMarker, operations);
+    core.setUpdateChecking(true);
     QInstaller::PackageManagerCore::setVirtualComponentsVisible(true);
     {
         using namespace QInstaller;
@@ -91,6 +93,7 @@ int UpdateChecker::check()
         ProductKeyCheck::instance()->addPackagesFromXml(QLatin1String(":/metadata/Updates.xml"));
         BinaryFormatEngineHandler::instance()->registerResources(manager.collections());
     }
+    qDebug() << "going to check update:" << __LINE__;
     if (!core.fetchRemotePackagesTree())
         throw QInstaller::Error(core.error());
 
@@ -99,10 +102,12 @@ int UpdateChecker::check()
     if (components.isEmpty())
         throw QInstaller::Error(QLatin1String("There are currently no updates available."));
 
+    qDebug() << "going to check update:" << __LINE__;
     QDomDocument doc;
     QDomElement root = doc.createElement(QLatin1String("updates"));
     doc.appendChild(root);
 
+    qDebug() << "going to check update:" << __LINE__;
     foreach (QInstaller::Component *component, components) {
         QDomElement update = doc.createElement(QLatin1String("update"));
         update.setAttribute(QLatin1String("name"), component->value(QInstaller::scDisplayName));
@@ -111,6 +116,7 @@ int UpdateChecker::check()
         root.appendChild(update);
     }
 
+    qDebug() << "going to check update:" << __LINE__;
     std::cout << qPrintable(doc.toString(4)) << std::endl;
     return EXIT_SUCCESS;
 }

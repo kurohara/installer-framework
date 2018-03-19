@@ -417,6 +417,7 @@ static bool componentMatches(const Component *component, const QString &name,
 */
 void PackageManagerCore::writeMaintenanceTool()
 {
+    qDebug() << "writeMaintenanceTool()";
     if (d->m_needToWriteMaintenanceTool) {
         try {
             d->writeMaintenanceTool(d->m_performedOperationsOld + d->m_performedOperationsCurrentSession);
@@ -705,7 +706,7 @@ void PackageManagerCore::rollBackInstallation()
             }
         }
     }
-
+    qDebug() << "rollBackInstallation:" << __LINE__ ;
     while (!d->m_performedOperationsCurrentSession.isEmpty()) {
         try {
             Operation *const operation = d->m_performedOperationsCurrentSession.takeLast();
@@ -838,7 +839,7 @@ PackageManagerCore::PackageManagerCore()
 */
 PackageManagerCore::PackageManagerCore(qint64 magicmaker, const QList<OperationBlob> &operations,
         const QString &socketName, const QString &key, Protocol::Mode mode)
-    : d(new PackageManagerCorePrivate(this, magicmaker, operations))
+    : d(new PackageManagerCorePrivate(this, magicmaker, operations)), m_isUpdateChecking(false)
 {
     Repository::registerMetaType(); // register, cause we stream the type as QVariant
     qRegisterMetaType<QInstaller::PackageManagerCore::Status>("QInstaller::PackageManagerCore::Status");
@@ -889,7 +890,7 @@ public:
     virtual bool write(const QString &fileName, QIODevice::OpenMode openMode, const QByteArray &data)
     {
         bool gainedAdminRights = false;
-
+        qDebug() << "write:" << __LINE__;
         if (!RemoteClient::instance().isActive()) {
             m_core->gainAdminRights();
             gainedAdminRights = true;
@@ -915,6 +916,16 @@ private:
     PackageManagerCore *m_core;
 };
 
+bool PackageManagerCore::isUpdateChecking()
+{
+    return m_isUpdateChecking;
+}
+
+void PackageManagerCore::setUpdateChecking(bool checking)
+{
+    m_isUpdateChecking = checking;
+}
+
 /*!
     Destroys the instance.
 */
@@ -926,13 +937,16 @@ PackageManagerCore::~PackageManagerCore()
             QLatin1String("InstallationLog.txt")));
         QInstaller::VerboseWriter::instance()->setFileName(logFileName);
     }
+
     delete d;
 
     try {
         PlainVerboseWriterOutput plainOutput;
         if (!VerboseWriter::instance()->flush(&plainOutput)) {
-            VerboseWriterAdminOutput adminOutput(this);
-            VerboseWriter::instance()->flush(&adminOutput);
+            if (! isUpdateChecking()) {
+                VerboseWriterAdminOutput adminOutput(this);
+                VerboseWriter::instance()->flush(&adminOutput);
+            }
         }
     } catch (...) {
         // Intentionally left blank; don't permit exceptions from VerboseWriter
@@ -1102,6 +1116,7 @@ void PackageManagerCore::networkSettingsChanged()
         bool gainedAdminRights = false;
         QTemporaryFile tempAdminFile(d->targetDir() + QStringLiteral("/XXXXXX"));
         if (!tempAdminFile.open() || !tempAdminFile.isWritable()) {
+            qDebug() << "networkSettingsChanged: " << __LINE__;
             gainAdminRights();
             gainedAdminRights = true;
         }
@@ -1183,44 +1198,56 @@ bool PackageManagerCore::fetchCompressedPackagesTree()
 */
 bool PackageManagerCore::fetchRemotePackagesTree()
 {
+    qDebug() << "fetchRemotePackagesTree: " << __LINE__;
     d->setStatus(Running);
 
+    qDebug() << "fetchRemotePackagesTree: " << __LINE__;
     if (isUninstaller()) {
         d->setStatus(Failure, tr("Application running in Uninstaller mode."));
         return false;
     }
 
+    qDebug() << "fetchRemotePackagesTree: " << __LINE__;
     if (!ProductKeyCheck::instance()->hasValidKey()) {
         d->setStatus(Failure, ProductKeyCheck::instance()->lastErrorString());
         return false;
     }
 
+    qDebug() << "fetchRemotePackagesTree: " << __LINE__;
     const LocalPackagesHash installedPackages = d->localInstalledPackages();
     if (!isInstaller() && status() == Failure)
         return false;
 
+    qDebug() << "fetchRemotePackagesTree: " << __LINE__;
     if (!d->fetchMetaInformationFromRepositories())
         return false;
 
+    qDebug() << "fetchRemotePackagesTree: " << __LINE__;
     if (!d->fetchMetaInformationFromCompressedRepositories())
         return false;
 
+    qDebug() << "fetchRemotePackagesTree: " << __LINE__;
     if (!d->addUpdateResourcesFromRepositories(true))
         return false;
 
+    qDebug() << "fetchRemotePackagesTree: " << __LINE__;
     const PackagesList &packages = d->remotePackages();
     if (packages.isEmpty())
         return false;
 
+    qDebug() << "fetchRemotePackagesTree: " << __LINE__;
     return fetchPackagesTree(packages, installedPackages);
 }
 
 bool PackageManagerCore::fetchPackagesTree(const PackagesList &packages, const LocalPackagesHash installedPackages) {
 
+    qDebug() << "fetchPackagesTree: " << __LINE__;
     bool success = false;
     if (!isUpdater()) {
+        qDebug() << "fetchPackagesTree: " << __LINE__;
         success = fetchAllPackages(packages, installedPackages);
         if (success && !d->statusCanceledOrFailed() && isPackageManager()) {
+            qDebug() << "fetchPackagesTree: " << __LINE__;
             foreach (Package *const update, packages) {
                 if (update->data(scEssential, scFalse).toString().toLower() == scTrue) {
                     const QString name = update->data(scName).toString();
@@ -1243,6 +1270,7 @@ bool PackageManagerCore::fetchPackagesTree(const PackagesList &packages, const L
                 }
             }
 
+            qDebug() << "fetchPackagesTree: " << __LINE__;
             if (!success && !d->statusCanceledOrFailed()) {
                 updateDisplayVersions(scRemoteDisplayVersion);
                 d->setStatus(ForceUpdate, tr("There is an important update available, please run the "
@@ -1251,13 +1279,17 @@ bool PackageManagerCore::fetchPackagesTree(const PackagesList &packages, const L
             }
         }
     } else {
+        qDebug() << "fetchPackagesTree: " << __LINE__;
         success = fetchUpdaterPackages(packages, installedPackages);
     }
 
+    qDebug() << "fetchPackagesTree: " << __LINE__;
     updateDisplayVersions(scRemoteDisplayVersion);
 
+    qDebug() << "fetchPackagesTree: " << __LINE__;
     if (success && !d->statusCanceledOrFailed())
         d->setStatus(Success);
+    qDebug() << "fetchPackagesTree: " << __LINE__;
     return success;
 }
 
@@ -1877,6 +1909,7 @@ bool PackageManagerCore::gainAdminRights()
     if (AdminAuthorization::hasAdminRights())
         return true;
 
+    qDebug() << "gainAdminRights:" <<  __LINE__;
     RemoteClient::instance().setActive(true);
     if (!RemoteClient::instance().isActive())
         throw Error(tr("Error while elevating access rights."));
@@ -2716,26 +2749,32 @@ bool PackageManagerCore::fetchAllPackages(const PackagesList &remotes, const Loc
 
 bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const LocalPackagesHash &locals)
 {
+    qDebug() << "fetchUpdaterPackages:" << __LINE__;
     emit startUpdaterComponentsReset();
-
+    qDebug() << "fetchUpdaterPackages:" << __LINE__;
     d->clearUpdaterComponentLists();
     QHash<QString, QInstaller::Component *> components;
 
+    qDebug() << "fetchUpdaterPackages:" << __LINE__;
     Data data;
     data.components = &components;
     data.installedPackages = &locals;
 
+    qDebug() << "fetchUpdaterPackages:" << __LINE__;
     bool foundEssentialUpdate = false;
     LocalPackagesHash installedPackages = locals;
     QStringList replaceMes;
 
+    qDebug() << "fetchUpdaterPackages:" << __LINE__;
     foreach (Package *const update, remotes) {
         if (d->statusCanceledOrFailed())
             return false;
 
+        qDebug() << "fetchUpdaterPackages:" << __LINE__;
         if (!ProductKeyCheck::instance()->isValidPackage(update->data(scName).toString()))
             continue;
 
+        qDebug() << "fetchUpdaterPackages:" << __LINE__;
         QScopedPointer<QInstaller::Component> component(new QInstaller::Component(this));
         data.package = update;
         component->loadDataFromPackage(*update);
@@ -2743,14 +2782,17 @@ bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const
             // Keep a reference so we can resolve dependencies during update.
             d->m_updaterComponentsDeps.append(component.take());
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
 //            const QString isNew = update->data(scNewComponent).toString();
 //            if (isNew.toLower() != scTrue)
 //                continue;
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
 
             const QString &name = d->m_updaterComponentsDeps.last()->name();
             const QString replaces = data.package->data(scReplaces).toString();
             installedPackages.take(name);   // remove from local installed packages
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             bool isValidUpdate = locals.contains(name);
             if (!isValidUpdate && !replaces.isEmpty()) {
                 const QStringList possibleNames = replaces.split(QInstaller::commaRegExp(),
@@ -2763,16 +2805,19 @@ bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const
                 }
             }
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             // break if the update is not valid and if it's not the maintenance tool (we might get an update
             // for the maintenance tool even if it's not currently installed - possible offline installation)
             if (!isValidUpdate && (update->data(scEssential, scFalse).toString().toLower() == scFalse))
                 continue;   // Update for not installed package found, skip it.
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             const LocalPackage &localPackage = locals.value(name);
             const QString updateVersion = update->data(scVersion).toString();
             if (KDUpdater::compareVersion(updateVersion, localPackage.version) <= 0)
                 continue;
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             // It is quite possible that we may have already installed the update. Lets check the last
             // update date of the package and the release date of the update. This way we can compare and
             // figure out if the update has been installed or not.
@@ -2780,13 +2825,16 @@ bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const
             if (localPackage.lastUpdateDate > updateDate)
                 continue;
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             if (update->data(scEssential, scFalse).toString().toLower() == scTrue)
                 foundEssentialUpdate = true;
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             // this is not a dependency, it is a real update
             components.insert(name, d->m_updaterComponentsDeps.takeLast());
         }
     }
+    qDebug() << "fetchUpdaterPackages:" << __LINE__;
 
     QHash<QString, QInstaller::Component *> localReplaceMes;
     foreach (const QString &key, installedPackages.keys()) {
@@ -2797,10 +2845,12 @@ bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const
         if (replaceMes.contains(component->name()))
             localReplaceMes.insert(component->name(), component);
     }
+    qDebug() << "fetchUpdaterPackages:" << __LINE__;
 
     // store all components that got a replacement, but do not modify the components list
     storeReplacedComponents(localReplaceMes.unite(components), data);
 
+    qDebug() << "fetchUpdaterPackages:" << __LINE__;
     try {
         if (!components.isEmpty()) {
             // append all components w/o parent to the direct list
@@ -2808,6 +2858,7 @@ bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const
                 appendUpdaterComponent(component);
             }
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             // after everything is set up, load the scripts
             foreach (QInstaller::Component *component, components) {
                 if (d->statusCanceledOrFailed())
@@ -2817,6 +2868,7 @@ bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const
                 component->setCheckState(Qt::Checked);
             }
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             // after everything is set up, check installed components
             foreach (QInstaller::Component *component, d->m_updaterComponentsDeps) {
                 if (d->statusCanceledOrFailed())
@@ -2830,6 +2882,7 @@ bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const
                 }
             }
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             if (foundEssentialUpdate) {
                 foreach (QInstaller::Component *component, components) {
                     if (d->statusCanceledOrFailed())
@@ -2848,13 +2901,16 @@ bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const
                 }
             }
 
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             std::sort(d->m_updaterComponents.begin(), d->m_updaterComponents.end(),
                 Component::SortingPriorityGreaterThan());
         } else {
             // we have no updates, no need to store possible dependencies
+            qDebug() << "fetchUpdaterPackages:" << __LINE__;
             d->clearUpdaterComponentLists();
         }
     } catch (const Error &error) {
+        qDebug() << "fetchUpdaterPackages:" << __LINE__;
         d->clearUpdaterComponentLists();
         emit finishUpdaterComponentsReset(QList<QInstaller::Component*>());
         d->setStatus(Failure, error.message());
@@ -2865,6 +2921,7 @@ bool PackageManagerCore::fetchUpdaterPackages(const PackagesList &remotes, const
         return false;
     }
 
+    qDebug() << "fetchUpdaterPackages:" << __LINE__;
     emit finishUpdaterComponentsReset(d->m_updaterComponents);
     return true;
 }

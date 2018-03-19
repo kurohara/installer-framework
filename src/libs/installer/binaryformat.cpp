@@ -158,7 +158,7 @@ bool Resource::open()
     if (isOpen())
         return false;
 
-    if (!m_file.open(QIODevice::ReadOnly | QIODevice::Unbuffered)) {
+    if (!m_file.open(QIODevice::ReadOnly /*| QIODevice::Unbuffered*/)) {
         setErrorString(m_file.errorString());
         return false;
     }

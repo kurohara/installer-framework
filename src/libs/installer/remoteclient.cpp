@@ -101,6 +101,7 @@ void RemoteClient::setActive(bool active)
 {
     Q_D(RemoteClient);
     d->m_active = active;
+    qDebug() << "setActive: " << d->m_active;
     if (d->m_active) {
         d->maybeStartServer();
         d->m_active = d->m_serverStarted;

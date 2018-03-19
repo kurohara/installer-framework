@@ -235,6 +235,9 @@ public:
     bool isVerbose() const;
     void setVerbose(bool on);
 
+    bool isUpdateChecking();
+    void setUpdateChecking(bool checking);
+
     Q_INVOKABLE bool gainAdminRights();
     Q_INVOKABLE void dropAdminRights();
 
@@ -349,6 +352,7 @@ private:
     PackageManagerCorePrivate *const d;
     friend class PackageManagerCorePrivate;
 
+    bool m_isUpdateChecking;
 private:
     // remove once we deprecate isSelected, setSelected etc...
     friend class ComponentSelectionPage;

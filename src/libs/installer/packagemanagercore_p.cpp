@@ -1052,11 +1052,21 @@ void PackageManagerCorePrivate::writeMaintenanceToolBinary(QFile *const input, q
                 dummy.errorString()));
         }
     }
-
+#if 0
     if (!out.copy(maintenanceToolRenamedName)) {
+        qDebug() << out.errorString();
         throw Error(tr("Cannot write maintenance tool to \"%1\": %2").arg(maintenanceToolRenamedName,
             out.errorString()));
     }
+#else
+    out.flush();
+    out.close();
+    QFile src(out.fileName());
+    if (!src.copy(maintenanceToolRenamedName)) {
+        qDebug() << out.errorString();
+    }
+//    QFile dst(maintenanceToolRenamedName);
+#endif
 
     QFile mt(maintenanceToolRenamedName);
     if (mt.setPermissions(out.permissions() | QFile::WriteUser | QFile::ReadGroup | QFile::ReadOther
@@ -1132,6 +1142,7 @@ void PackageManagerCorePrivate::writeMaintenanceToolBinaryData(QFileDevice *outp
 void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOperations)
 {
     bool gainedAdminRights = false;
+    qDebug() << "writeMaintenanceTool: " __FILE__ << ":" << __LINE__;
     QTemporaryFile tempAdminFile(targetDir() + QLatin1String("/testjsfdjlkdsjflkdsjfldsjlfds")
         + QString::number(qrand() % 1000));
     if (!tempAdminFile.open() || !tempAdminFile.isWritable()) {
@@ -1298,39 +1309,11 @@ void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOper
                         "deliberately not used. Running as installer requires to read the "
                         "resources from the application binary.";
                 }
-#ifdef Q_OS_OSX
-                // On Mac, data is always in a separate file so that the binary can be signed
-                QString binaryName = isInstaller() ? installerBinaryPath() : maintenanceToolName();
-                QDir dataPath(QFileInfo(binaryName).dir());
-                dataPath.cdUp();
-                dataPath.cd(QLatin1String("Resources"));
-                input.setFileName(dataPath.filePath(QLatin1String("installer.dat")));
-
-                QInstaller::openForRead(&input);
-                layout = BinaryContent::binaryLayout(&input, BinaryContent::MagicCookie);
-
-                if (!newBinaryWritten) {
-                    newBinaryWritten = true;
-                    QFile tmp(binaryName);
-                    QInstaller::openForRead(&tmp);
-                    writeMaintenanceToolBinary(&tmp, tmp.size(), true);
-                }
-#else
-                input.setFileName(isInstaller() ? installerBinaryPath() : maintenanceToolName());
-                QInstaller::openForRead(&input);
-                layout = BinaryContent::binaryLayout(&input, BinaryContent::MagicCookie);
-                if (!newBinaryWritten) {
-                    newBinaryWritten = true;
-                    writeMaintenanceToolBinary(&input, layout.endOfBinaryContent
-                        - layout.binaryContentSize, true);
-                }
-#endif
-//                throw Error();
-            } else {
-                input.setFileName(dataFile);
-                QInstaller::openForRead(&input);
-                layout = BinaryContent::binaryLayout(&input, BinaryContent::MagicCookieDat);
+                throw Error();
             }
+            input.setFileName(dataFile);
+            QInstaller::openForRead(&input);
+            layout = BinaryContent::binaryLayout(&input, BinaryContent::MagicCookieDat);
         } catch (const Error &/*error*/) {
 #ifdef Q_OS_OSX
             // On Mac, data is always in a separate file so that the binary can be signed
@@ -1350,10 +1333,12 @@ void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOper
                 writeMaintenanceToolBinary(&tmp, tmp.size(), true);
             }
 #else
+            qDebug() << "write to maintenance tool: " << __LINE__;
             input.setFileName(isInstaller() ? installerBinaryPath() : maintenanceToolName());
             QInstaller::openForRead(&input);
             layout = BinaryContent::binaryLayout(&input, BinaryContent::MagicCookie);
             if (!newBinaryWritten) {
+                qDebug() << "write to maintenance tool: " << __LINE__;
                 newBinaryWritten = true;
                 writeMaintenanceToolBinary(&input, layout.endOfBinaryContent
                     - layout.binaryContentSize, true);
@@ -1368,24 +1353,43 @@ void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOper
             QTemporaryFile file;
             QInstaller::openForWrite(&file);
 
+            qDebug() << "write to maintenance tool: " << __LINE__;
             writeMaintenanceToolBinaryData(&file, &input, performedOperations, layout);
             QInstaller::appendInt64(&file, BinaryContent::MagicCookieDat);
 
+            qDebug() << "write to maintenance tool: " << __LINE__;
             QFile dummy(dataFile + QLatin1String(".new"));
             if (dummy.exists() && !dummy.remove()) {
                 throw Error(tr("Cannot remove data file \"%1\": %2").arg(dummy.fileName(),
                     dummy.errorString()));
             }
 
+            qDebug() << "write to maintenance tool: " << __LINE__;
+#if 0
             if (!file.rename(dataFile + QLatin1String(".new"))) {
                 throw Error(tr("Cannot write maintenance tool binary data to %1: %2")
                     .arg(file.fileName(), file.errorString()));
             }
+            qDebug() << "write to maintenance tool: " << __LINE__;
             file.setAutoRemove(false);
             file.setPermissions(file.permissions() | QFile::WriteUser | QFile::ReadGroup
                 | QFile::ReadOther);
+#else
+            file.flush();
+            QFile tmpfr(file.fileName());
+            if (!tmpfr.copy(dataFile + QLatin1String(".new"))) {
+                throw Error(tr("Cannot write maintenance tool binary data to %1: %2")
+                    .arg(file.fileName(), file.errorString()));
+            }
+            qDebug() << "write to maintenance tool: " << __LINE__;
+            QFile tmpfr2(dataFile + QLatin1String(".new"));
+            tmpfr2.setPermissions(file.permissions() | QFile::WriteUser | QFile::ReadGroup
+                                  | QFile::ReadOther);
+#endif
         } catch (const Error &/*error*/) {
+            qDebug() << "write to maintenance tool: " << __LINE__;
             if (!newBinaryWritten) {
+                qDebug() << "write to maintenance tool: " << __LINE__;
                 newBinaryWritten = true;
                 QFile tmp(isInstaller() ? installerBinaryPath() : maintenanceToolName());
                 QInstaller::openForRead(&tmp);
@@ -1394,6 +1398,7 @@ void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOper
                     - tmpLayout.binaryContentSize, false);
             }
 
+            qDebug() << "write to maintenance tool: " << __LINE__;
             QFile file(maintenanceToolName() + QLatin1String(".new"));
             QInstaller::openForAppend(&file);
             file.seek(file.size());
@@ -1406,7 +1411,9 @@ void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOper
         writeMaintenanceConfigFiles();
         deferredRename(dataFile + QLatin1String(".new"), dataFile, false);
 
+        qDebug() << "write to maintenance tool: " << __LINE__;
         if (newBinaryWritten) {
+            qDebug() << "write to maintenance tool: " << __LINE__;
             const bool restart = replacementExists && isUpdater() && (!statusCanceledOrFailed()) && m_needsHardRestart;
             deferredRename(maintenanceToolName() + QLatin1String(".new"), maintenanceToolName(), restart);
             qDebug() << "Maintenance tool restart:" << (restart ? "true." : "false.");
@@ -1471,6 +1478,7 @@ bool PackageManagerCorePrivate::runInstaller()
                 Operation *pathToTargetOp = createOwnedOperation(QLatin1String("Mkdir"));
                 pathToTargetOp->setArguments(QStringList() << pathToTarget);
                 if (!performOperationThreaded(pathToTargetOp)) {
+                    qDebug() << "runInstaller:" << __LINE__;
                     adminRightsGained = m_core->gainAdminRights();
                     if (!performOperationThreaded(pathToTargetOp))
                         throw Error(pathToTargetOp->errorString());
@@ -1478,8 +1486,10 @@ bool PackageManagerCorePrivate::runInstaller()
             }
         } else if (QDir(target).exists()) {
             QTemporaryFile tempAdminFile(target + QLatin1String("/adminrights"));
-            if (!tempAdminFile.open() || !tempAdminFile.isWritable())
+            if (!tempAdminFile.open() || !tempAdminFile.isWritable()) {
+                qDebug() << "runInstaller:" << __LINE__;
                 adminRightsGained = m_core->gainAdminRights();
+            }
         }
 
         // add the operation to create the target directory
@@ -1491,6 +1501,7 @@ bool PackageManagerCorePrivate::runInstaller()
         performOperationThreaded(mkdirOp, Backup);
         if (!performOperationThreaded(mkdirOp)) {
             // if we cannot create the target dir, we try to activate the admin rights
+            qDebug() << "runInstaller:" << __LINE__;
             adminRightsGained = m_core->gainAdminRights();
             if (!performOperationThreaded(mkdirOp))
                 throw Error(mkdirOp->errorString());
@@ -1519,6 +1530,7 @@ bool PackageManagerCorePrivate::runInstaller()
                 if (component->value(scRequiresAdminRights, scFalse) == scFalse)
                     continue;
 
+                qDebug() << "runInstaller:" << __LINE__;
                 m_core->gainAdminRights();
                 m_core->dropAdminRights();
                 break;
@@ -1575,6 +1587,7 @@ bool PackageManagerCorePrivate::runInstaller()
 
                 bool success = performOperationThreaded(createRepo);
                 if (!success) {
+                    qDebug() << "runInstaller:" << __LINE__;
                     adminRightsGained = m_core->gainAdminRights();
                     success = performOperationThreaded(createRepo);
                 }
@@ -1645,8 +1658,10 @@ bool PackageManagerCorePrivate::runPackageUpdater()
         ProgressCoordinator::instance()->addReservePercentagePoints(1);
 
         // check if we need admin rights and ask before the action happens
-        if (!QTemporaryFile(targetDir() + QStringLiteral("/XXXXXX")).open())
+        if (!QTemporaryFile(targetDir() + QStringLiteral("/XXXXXX")).open()) {
+            qDebug() << "runInstaller:" << __LINE__;
             adminRightsGained = m_core->gainAdminRights();
+        }
 
         const QList<Component *> componentsToInstall = m_core->orderedComponentsToInstall();
         qDebug() << "Install size:" << componentsToInstall.size() << "components";
@@ -1740,6 +1755,7 @@ bool PackageManagerCorePrivate::runPackageUpdater()
 
         // we did not request admin rights till we found out that a component/ undo needs admin rights
         if (updateAdminRights && !adminRightsGained) {
+            qDebug() << "runInstaller:" << __LINE__;
             m_core->gainAdminRights();
             m_core->dropAdminRights();
         }
@@ -1815,8 +1831,10 @@ bool PackageManagerCorePrivate::runUninstaller()
 
         // check if we need to run elevated and ask before the action happens
         QTemporaryFile tempAdminFile(targetDir() + QLatin1String("/adminrights"));
-        if (!tempAdminFile.open() || !tempAdminFile.isWritable())
+        if (!tempAdminFile.open() || !tempAdminFile.isWritable()) {
+            qDebug() << "runInstaller:" << __LINE__;
             adminRightsGained = m_core->gainAdminRights();
+        }
 
         OperationList undoOperations = m_performedOperationsOld;
         std::reverse(undoOperations.begin(), undoOperations.end());
@@ -1832,6 +1850,7 @@ bool PackageManagerCorePrivate::runUninstaller()
 
         // We did not yet request elevated permissions but they are required.
         if (updateAdminRights && !adminRightsGained) {
+            qDebug() << "runInstaller:" << __LINE__;
             m_core->gainAdminRights();
             m_core->dropAdminRights();
         }
@@ -1846,8 +1865,10 @@ bool PackageManagerCorePrivate::runUninstaller()
 
         // If not on Windows, we need to remove TargetDir manually.
         if (QVariant(m_core->value(scRemoveTargetDir)).toBool() && !targetDir().isEmpty()) {
-            if (updateAdminRights && !adminRightsGained)
+            if (updateAdminRights && !adminRightsGained) {
+                qDebug() << "runInstaller:" << __LINE__;
                 adminRightsGained = m_core->gainAdminRights();
+            }
             removeDirectoryThreaded(targetDir(), true);
             qDebug() << "Complete uninstallation was chosen.";
         }
@@ -1895,6 +1916,7 @@ void PackageManagerCorePrivate::installComponent(Component *component, double pr
         // maybe this operations wants us to be admin...
         bool becameAdmin = false;
         if (!adminRightsGained && operation->value(QLatin1String("admin")).toBool()) {
+            qDebug() << "runInstaller:" << __LINE__;
             becameAdmin = m_core->gainAdminRights();
             qDebug() << operation->name() << "as admin:" << becameAdmin;
         }
@@ -2099,8 +2121,10 @@ void PackageManagerCorePrivate::runUndoOperations(const OperationList &undoOpera
                 throw Error(tr("Installation canceled by user"));
 
             bool becameAdmin = false;
-            if (!adminRightsGained && undoOperation->value(QLatin1String("admin")).toBool())
+            if (!adminRightsGained && undoOperation->value(QLatin1String("admin")).toBool()) {
+                qDebug() << "runInstaller:" << __LINE__;
                 becameAdmin = m_core->gainAdminRights();
+            }
 
             connectOperationToInstaller(undoOperation, progressSize);
             qDebug() << "undo operation=" << undoOperation->name();
