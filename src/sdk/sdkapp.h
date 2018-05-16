@@ -31,6 +31,7 @@
 
 #include <binarycontent.h>
 #include <binaryformat.h>
+#include <errors.h>
 #include <fileio.h>
 #include <fileutils.h>
 
@@ -98,8 +99,26 @@ public:
     {
         QFile file(binaryFile);
         QInstaller::openForRead(&file);
+#if 0
         const quint64 cookiePos = QInstaller::BinaryContent::findMagicCookie(&file,
             QInstaller::BinaryContent::MagicCookie);
+#else
+	quint64 cookiePos;
+	try {
+	  cookiePos = QInstaller::BinaryContent::findMagicCookie(&file,
+								 QInstaller::BinaryContent::MagicCookie);
+	} catch (const QInstaller::Error &error) {
+#ifdef Q_OS_WIN
+	  QFileInfo fi(binaryFile);
+	  QString datFilePath = fi.absoluteDir().filePath(fi.baseName() + QLatin1String(".dat"));
+	  if (QFile::exists(datFilePath)) {
+	    return datFilePath;
+	  }
+#endif
+	  throw error;
+	}
+
+#endif
         if (!file.seek(cookiePos - sizeof(qint64)))    // seek to read the marker
             return QString(); // ignore error, we will fail later
 
