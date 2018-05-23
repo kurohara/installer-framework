@@ -99,7 +99,7 @@ public:
     {
         QFile file(binaryFile);
         QInstaller::openForRead(&file);
-#if 0
+#ifndef CODESIGN_MAINTENANCETOOL
         const quint64 cookiePos = QInstaller::BinaryContent::findMagicCookie(&file,
             QInstaller::BinaryContent::MagicCookie);
 #else
