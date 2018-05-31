@@ -1959,7 +1959,7 @@ bool PackageManagerCore::killProcess(const QString &absoluteFilePath) const
 
             //to keep the ui responsible use QtConcurrent::run
             QFutureWatcher<bool> futureWatcher;
-            const QFuture<bool> future = QtConcurrent::run(KDUpdater::killProcess, process, 30000);
+            const QFuture<bool> future = QtConcurrent::run(KDUpdater::killProcess, process, /* 30000 */ 5000 /* Customize for our application, (does not respond to WM_CLOSE property now ) */);
 
             QEventLoop loop;
             connect(&futureWatcher, &QFutureWatcher<bool>::finished,
