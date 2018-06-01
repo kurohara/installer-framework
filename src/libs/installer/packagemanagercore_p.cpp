@@ -1273,8 +1273,11 @@ void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOper
             QFile replacementBinary(installerBaseBinary);
             try {
                 QInstaller::openForRead(&replacementBinary);
-                // writeMaintenanceToolBinary(&replacementBinary, replacementBinary.size(), true);
+#ifndef CODESIGN_MAINTENANCETOOL
+                writeMaintenanceToolBinary(&replacementBinary, replacementBinary.size(), true);
+#else
                 writeMaintenanceToolBinary(&replacementBinary, replacementBinary.size(), false);
+#endif
                 qDebug() << "Wrote the binary with the new replacement.";
 
                 newBinaryWritten = true;
