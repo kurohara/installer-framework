@@ -205,8 +205,9 @@ bool killProcess(const ProcessInfo &process, int msecs)
 
     // Wait on the handle. If it signals, great. If it times out, then kill it.
     bool returnValue = false;
-    if (WaitForSingleObject(hProc, dwTimeout) != WAIT_OBJECT_0)
+    if (WaitForSingleObject(hProc, dwTimeout) != WAIT_OBJECT_0) {
         returnValue = TerminateProcess(hProc, 0);
+    }
 
     CloseHandle(hProc);
     return returnValue;
