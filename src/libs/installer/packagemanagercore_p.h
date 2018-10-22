@@ -162,6 +162,10 @@ public:
     void installComponent(Component *component, double progressOperationSize,
         bool adminRightsGained = false);
 
+    // Kurohara added..
+    QString guidInstalled(const QString &targetDirectory);
+    bool hasUninstallEntry(const QString &targetDirectory);
+    
 signals:
     void installationStarted();
     void installationFinished();
@@ -201,6 +205,8 @@ public:
 
     bool m_dependsOnLocalInstallerBinary;
 
+    // Kurohara added
+    bool m_bSkipRegisterUninstaller;
 private slots:
     void infoMessage(Job *, const QString &message) {
         emit m_core->metaJobInfoMessage(message);

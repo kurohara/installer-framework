@@ -205,6 +205,7 @@ PackageManagerCorePrivate::PackageManagerCorePrivate(PackageManagerCore *core)
     , m_updaterModel(0)
     , m_guiObject(0)
     , m_remoteFileEngineHandler(0)
+    , m_bSkipRegisterUninstaller(false)
 {
 }
 
@@ -235,6 +236,7 @@ PackageManagerCorePrivate::PackageManagerCorePrivate(PackageManagerCore *core, q
     , m_updaterModel(0)
     , m_guiObject(0)
     , m_remoteFileEngineHandler(new RemoteFileEngineHandler)
+    , m_bSkipRegisterUninstaller(false)
 {
     foreach (const OperationBlob &operation, performedOperations) {
         QScopedPointer<QInstaller::Operation> op(KDUpdater::UpdateOperationFactory::instance()
@@ -542,6 +544,8 @@ UninstallerCalculator *PackageManagerCorePrivate::uninstallerCalculator() const
 
 void PackageManagerCorePrivate::initialize(const QHash<QString, QString> &params)
 {
+  qDebug() << "PackageManagerCorePrivate::initialize" << ":" << __LINE__;
+  qDebug() << "" << __FILE__ << ":" <<  __LINE__;
     m_coreCheckedHash.clear();
     m_data = PackageManagerCoreData(params);
     m_componentsToInstallCalculated = false;
@@ -558,8 +562,14 @@ void PackageManagerCorePrivate::initialize(const QHash<QString, QString> &params
         readMaintenanceConfigFiles(QCoreApplication::applicationDirPath());
 #endif
     }
+    
     processFilesForDelayedDeletion();
     m_data.setDynamicPredefinedVariables();
+
+    // indicates 'this custom IFW has special feature...'
+    m_data.setValue(QLatin1String("hasFeature_Windows_Multi_Install"), QLatin1String("true"));
+    m_data.setValue(QLatin1String("hasFeature_No_Restart_Button"), QLatin1String("true"));
+    //
 
     disconnect(this, &PackageManagerCorePrivate::installationStarted,
                ProgressCoordinator::instance(), &ProgressCoordinator::reset);
@@ -804,8 +814,53 @@ void PackageManagerCorePrivate::writeMaintenanceConfigFiles()
     }
 }
 
+QString PackageManagerCorePrivate::guidInstalled(const QString &targetDirectory)
+{
+#ifdef Q_OS_WIN
+
+  qDebug() << "maintenanceToolIniFile: " << targetDirectory + QLatin1Char('/') + m_data.settings().maintenanceToolIniFile();
+    QSettingsWrapper cfg(targetDirectory + QLatin1Char('/') + m_data.settings().maintenanceToolIniFile(),
+        QSettingsWrapper::IniFormat);
+    const QVariantHash v = cfg.value(QLatin1String("Variables")).toHash(); // Do not change to
+
+    QString strGuid = v[QLatin1String(scProductUUID)].toString();
+
+    qDebug() << "strGuid: " << strGuid;
+    return strGuid;
+#else
+    return "";
+#endif
+}
+
+bool PackageManagerCorePrivate::hasUninstallEntry(const QString &targetDirectory)
+{
+#ifdef Q_OS_WIN
+
+  QString guid = guidInstalled(targetDirectory);
+  if (guid.isEmpty()) {
+    return false;
+  }
+  
+  m_data.setValue(scProductUUID, guid);
+  
+  QString  regPath = registerPath();
+
+  qDebug() << "registry path: " << regPath;
+  QSettingsWrapper settings(regPath, QSettingsWrapper::NativeFormat);
+  
+  QString strUninstallEntry = settings.value(QLatin1String("UninstallString")).toString();
+
+  qDebug() << "uninstall entry in registry: " << strUninstallEntry;
+  
+  return ! strUninstallEntry.isEmpty();
+#else
+  return false;
+#endif  
+}
+
 void PackageManagerCorePrivate::readMaintenanceConfigFiles(const QString &targetDir)
 {
+  qDebug() << " PackageManagerCorePrivate::readMaintenanceConfigFiles " << __LINE__;
     QSettingsWrapper cfg(targetDir + QLatin1Char('/') + m_data.settings().maintenanceToolIniFile(),
         QSettingsWrapper::IniFormat);
     const QVariantHash v = cfg.value(QLatin1String("Variables")).toHash(); // Do not change to
@@ -1496,6 +1551,8 @@ bool PackageManagerCorePrivate::runInstaller()
             }
         }
 
+	m_bSkipRegisterUninstaller = hasUninstallEntry(target);
+	
         // add the operation to create the target directory
         Operation *mkdirOp = createOwnedOperation(QLatin1String("Mkdir"));
         mkdirOp->setArguments(QStringList() << target);
@@ -2067,6 +2124,10 @@ void PackageManagerCorePrivate::deleteMaintenanceTool()
 void PackageManagerCorePrivate::registerMaintenanceTool()
 {
 #ifdef Q_OS_WIN
+  if (m_bSkipRegisterUninstaller) {
+    return;
+  }
+  
     QSettingsWrapper settings(registerPath(), QSettingsWrapper::NativeFormat);
     settings.setValue(scDisplayName, m_data.value(QLatin1String("ProductName")));
     settings.setValue(QLatin1String("DisplayVersion"), m_data.value(QLatin1String("ProductVersion")));

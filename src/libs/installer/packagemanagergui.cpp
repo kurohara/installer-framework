@@ -3033,6 +3033,7 @@ void PerformInstallationPage::installationStarted()
 
 void PerformInstallationPage::installationFinished()
 {
+  qDebug() << "PerformInstallationPage::installationFinished";
     m_performInstallationForm->stopUpdateProgress();
     if (!isAutoSwitching()) {
         m_performInstallationForm->scrollDetailsToTheEnd();
@@ -3080,6 +3081,7 @@ FinishedPage::FinishedPage(PackageManagerCore *core)
     : PackageManagerPage(core)
     , m_commitButton(0)
 {
+  qDebug() << "FinishedPage::FinishedPage";
     setObjectName(QLatin1String("FinishedPage"));
     setColoredTitle(tr("Completing the %1 Wizard").arg(productName()));
 
@@ -3109,6 +3111,7 @@ void FinishedPage::entering()
                         .arg(gui()->defaultButtonText(QWizard::FinishButton).remove(QLatin1Char('&')))
                         .arg(productName()));
 
+    qDebug() << "FinishedPage::entering()";
     if (m_commitButton) {
         disconnect(m_commitButton, &QAbstractButton::clicked, this, &FinishedPage::handleFinishClicked);
         m_commitButton = 0;
@@ -3171,7 +3174,11 @@ void FinishedPage::entering()
 
     m_runItCheckBox->hide();
     m_runItCheckBox->setChecked(false);
-}
+    // custom IFW, remove "Restart" button...
+    if (wizard()->button(QWizard::CommitButton)) {
+      wizard()->button(QWizard::CommitButton)->hide();
+    }
+}p
 
 /*!
     Called when end users leave the page and the PackageManagerGui:currentPageChanged()
@@ -3250,6 +3257,7 @@ void FinishedPage::cleanupChangedConnects()
 RestartPage::RestartPage(PackageManagerCore *core)
     : PackageManagerPage(core)
 {
+  qDebug() << "RestartPage::RestartPage";
     setObjectName(QLatin1String("RestartPage"));
     setColoredTitle(tr("Completing the %1 Setup Wizard").arg(productName()));
 
@@ -3270,6 +3278,8 @@ int RestartPage::nextId() const
 */
 void RestartPage::entering()
 {
+
+  qDebug() << "RestartPage::entering()";
     if (!packageManagerCore()->needsHardRestart()) {
         if (QAbstractButton *finish = wizard()->button(QWizard::FinishButton))
             finish->setVisible(false);
