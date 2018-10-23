@@ -81,7 +81,9 @@ private:
     void setOpenMode(OpenMode mode) { QIODevice::setOpenMode(mode); }
 
 private:
-    QFSFileEngine m_file;
+    // QFSFileEngine is obsolete class, replace it with QFile
+    // QFSFileEngine m_file;
+    QFile m_file;
     QByteArray m_name;
     Range<qint64> m_segment;
 };
