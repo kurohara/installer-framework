@@ -828,7 +828,7 @@ QString PackageManagerCorePrivate::guidInstalled(const QString &targetDirectory)
     qDebug() << "strGuid: " << strGuid;
     return strGuid;
 #else
-    return "";
+    return QString();
 #endif
 }
 

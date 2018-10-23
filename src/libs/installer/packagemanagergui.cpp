@@ -3178,7 +3178,7 @@ void FinishedPage::entering()
     if (wizard()->button(QWizard::CommitButton)) {
       wizard()->button(QWizard::CommitButton)->hide();
     }
-}p
+}
 
 /*!
     Called when end users leave the page and the PackageManagerGui:currentPageChanged()
