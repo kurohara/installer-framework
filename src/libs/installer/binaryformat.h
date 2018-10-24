@@ -81,9 +81,12 @@ private:
     void setOpenMode(OpenMode mode) { QIODevice::setOpenMode(mode); }
 
 private:
+#if QT_VERSION < QT_VERSION_CHECK(5,12,0) && defined(Q_OS_WIN)
     // QFSFileEngine is obsolete class, replace it with QFile
-    // QFSFileEngine m_file;
+    QFSFileEngine m_file;
+#else
     QFile m_file;
+#endif
     QByteArray m_name;
     Range<qint64> m_segment;
 };
