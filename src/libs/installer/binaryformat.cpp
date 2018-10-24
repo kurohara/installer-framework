@@ -157,9 +157,9 @@ bool Resource::open()
 {
 #if QT_VERSION < QT_VERSION_CHECK(5,12,0) && defined(Q_OS_WIN)
   // check compiler directive
-  fprintf(stderr, "< QT5.12.0 && Windows\n");
+  //  fprintf(stderr, "< QT5.12.0 && Windows\n");
 #else
-  fprintf(stderr, ">= QT5.12.0 || !Windows\n");
+  //  fprintf(stderr, ">= QT5.12.0 || !Windows\n");
 #endif
     if (isOpen())
         return false;
