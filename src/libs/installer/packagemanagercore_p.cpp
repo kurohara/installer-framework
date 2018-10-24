@@ -2124,9 +2124,13 @@ void PackageManagerCorePrivate::deleteMaintenanceTool()
 void PackageManagerCorePrivate::registerMaintenanceTool()
 {
 #ifdef Q_OS_WIN
-  if (m_bSkipRegisterUninstaller) {
-    return;
-  }
+  // comment out, because if already installed, we have old GUID set into m_data(in hasUninstallEntry())...
+  //   -> registerPath() returns correct(old) path.
+  // It is better to overwrite registry entry because version number may be changed.
+  //
+  // if (m_bSkipRegisterUninstaller) {
+  //  return;
+  // }
   
     QSettingsWrapper settings(registerPath(), QSettingsWrapper::NativeFormat);
     settings.setValue(scDisplayName, m_data.value(QLatin1String("ProductName")));
