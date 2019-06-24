@@ -143,3 +143,7 @@ DEFINES += CUSTOM_IFW_FEATURE
 # setting _7ZIP_ST makes 7zip processing in single thread, but it takes so long time.
 DEFINES += _7ZIP_ST
 }
+
+7ZIP_MEMORY_DEBUG {
+DEFINES += HEAP_MEMORY_DEBUG
+}

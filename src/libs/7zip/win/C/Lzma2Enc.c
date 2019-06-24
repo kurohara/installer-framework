@@ -487,6 +487,11 @@ SRes Lzma2Enc_Encode(CLzma2EncHandle pp,
     p->mtCoder.destBlockSize = p->props.blockSize + (p->props.blockSize >> 10) + 16;
     p->mtCoder.numThreads = p->props.numBlockThreads;
 
+    // for debug
+    // p->mtCoder.blockSize = p->props.lzmaProps.dictSize;
+    // p->mtCoder.destBlockSize = p->mtCoder.blockSize + (p->mtCoder.blockSize >> 10) + 16;
+    // p->mtCoder.numThreads = 2;
+    //
     return MtCoder_Code(&p->mtCoder);
   }
   #endif
