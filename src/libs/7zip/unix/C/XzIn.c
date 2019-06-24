@@ -232,6 +232,10 @@ void Xzs_Construct(CXzs *p)
   p->streams = 0;
 }
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 void Xzs_Free(CXzs *p, ISzAlloc *alloc)
 {
   size_t i;
@@ -271,6 +275,10 @@ UInt64 Xzs_GetPackSize(const CXzs *p)
 }
 */
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 SRes Xzs_ReadBackward(CXzs *p, ILookInStream *stream, Int64 *startOffset, ICompressProgress *progress, ISzAlloc *alloc)
 {
   Int64 endOffset = 0;

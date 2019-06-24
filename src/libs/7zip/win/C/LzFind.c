@@ -16,6 +16,10 @@
 
 #define kStartMaxLen 3
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 static void LzInWindow_Free(CMatchFinder *p, ISzAlloc *alloc)
 {
   if (!p->directInput)
@@ -150,6 +154,10 @@ void MatchFinder_Construct(CMatchFinder *p)
   }
 }
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 static void MatchFinder_FreeThisClassMemory(CMatchFinder *p, ISzAlloc *alloc)
 {
   alloc->Free(alloc, p->hash);

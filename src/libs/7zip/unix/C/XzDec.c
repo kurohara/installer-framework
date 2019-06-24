@@ -338,6 +338,10 @@ void MixCoder_Construct(CMixCoder *p, ISzAlloc *alloc)
     p->coders[i].p = NULL;
 }
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 void MixCoder_Free(CMixCoder *p)
 {
   int i;

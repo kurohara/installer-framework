@@ -437,6 +437,10 @@ void MatchFinderMt_Construct(CMatchFinderMt *p)
   MtSync_Construct(&p->btSync);
 }
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 void MatchFinderMt_FreeMem(CMatchFinderMt *p, ISzAlloc *alloc)
 {
   alloc->Free(alloc, p->hashBuf);

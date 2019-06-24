@@ -31,6 +31,10 @@ void Xz_Construct(CXzStream *p)
   p->flags = 0;
 }
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 void Xz_Free(CXzStream *p, ISzAlloc *alloc)
 {
   alloc->Free(alloc, p->blocks);

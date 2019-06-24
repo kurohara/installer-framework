@@ -910,12 +910,20 @@ SRes LzmaDec_DecodeToBuf(CLzmaDec *p, Byte *dest, SizeT *destLen, const Byte *sr
   }
 }
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 void LzmaDec_FreeProbs(CLzmaDec *p, ISzAlloc *alloc)
 {
   alloc->Free(alloc, p->probs);
   p->probs = 0;
 }
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 static void LzmaDec_FreeDict(CLzmaDec *p, ISzAlloc *alloc)
 {
   alloc->Free(alloc, p->dic);

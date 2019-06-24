@@ -484,6 +484,10 @@ static int RangeEnc_Alloc(CRangeEnc *p, ISzAlloc *alloc)
   return 1;
 }
 
+/**
+ * !! Suspicious code (multithread unsafe) !!
+ * (memo by MicroGadget,inc)
+ */
 static void RangeEnc_Free(CRangeEnc *p, ISzAlloc *alloc)
 {
   alloc->Free(alloc, p->bufBase);
@@ -1719,6 +1723,11 @@ CLzmaEncHandle LzmaEnc_Create(ISzAlloc *alloc)
   return p;
 }
 
+/**
+ * !! suspicious code (multithread unsafe)!!
+ * may need to make secure freeing and setting NULL.
+ * (MicroGadget,inc)
+ */
 void LzmaEnc_FreeLits(CLzmaEnc *p, ISzAlloc *alloc)
 {
   alloc->Free(alloc, p->litProbs);
