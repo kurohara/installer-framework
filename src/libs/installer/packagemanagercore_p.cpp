@@ -217,6 +217,9 @@ PackageManagerCorePrivate::PackageManagerCorePrivate(PackageManagerCore *core)
     , m_remoteFileEngineHandler(nullptr)
     , m_foundEssentialUpdate(false)
     , m_checkAvailableSpace(true)
+#if defined(Q_OS_WIN) && defined(CUSTOM_IFW_FEATURE)
+    , m_bSkipRegisterUninstaller(false)
+#endif
 {
 }
 
@@ -249,6 +252,9 @@ PackageManagerCorePrivate::PackageManagerCorePrivate(PackageManagerCore *core, q
     , m_remoteFileEngineHandler(new RemoteFileEngineHandler)
     , m_foundEssentialUpdate(false)
     , m_checkAvailableSpace(true)
+#if defined(Q_OS_WIN) && defined(CUSTOM_IFW_FEATURE)
+    , m_bSkipRegisterUninstaller(false)
+#endif
 {
     foreach (const OperationBlob &operation, performedOperations) {
         QScopedPointer<QInstaller::Operation> op(KDUpdater::UpdateOperationFactory::instance()
@@ -588,6 +594,14 @@ void PackageManagerCorePrivate::initialize(const QHash<QString, QString> &params
     processFilesForDelayedDeletion();
     m_data.setDynamicPredefinedVariables();
 
+#if defined(Q_OS_WIN) && defined(CUSTOM_IFW_FEATURE)
+    // indicates 'this custom IFW has special feature...'
+    m_data.setValue(QLatin1String("hasFeature_Windows_Multi_Install"), QLatin1String("true"));
+#endif
+#ifdef CUSTOM_IFW_FEATURE
+    m_data.setValue(QLatin1String("hasFeature_No_Restart_Button"), QLatin1String("true"));
+#endif
+
     disconnect(this, &PackageManagerCorePrivate::installationStarted,
                ProgressCoordinator::instance(), &ProgressCoordinator::reset);
     connect(this, &PackageManagerCorePrivate::installationStarted,
@@ -619,6 +633,7 @@ void PackageManagerCorePrivate::initialize(const QHash<QString, QString> &params
     connect(&m_metadataJob, &Job::totalProgress, this, &PackageManagerCorePrivate::totalProgress);
     KDUpdater::FileDownloaderFactory::instance().setProxyFactory(m_core->proxyFactory());
 }
+
 
 bool PackageManagerCorePrivate::isOfflineOnly() const
 {
@@ -891,6 +906,42 @@ void PackageManagerCorePrivate::readMaintenanceConfigFiles(const QString &target
     }
 }
 
+#if defined(Q_OS_WIN) && defined(CUSTOM_IFW_FEATURE)
+QString PackageManagerCorePrivate::guidInstalled(const QString &targetDirectory)
+{
+    qDebug() << "maintenanceToolIniFile: " << targetDirectory + QLatin1Char('/') + m_data.settings().maintenanceToolIniFile();
+    QSettingsWrapper cfg(targetDirectory + QLatin1Char('/') + m_data.settings().maintenanceToolIniFile(),
+        QSettingsWrapper::IniFormat);
+    const QVariantHash v = cfg.value(QLatin1String("Variables")).toHash(); // Do not change to
+
+    QString strGuid = v[QLatin1String(scProductUUID)].toString();
+
+    qDebug() << "strGuid: " << strGuid;
+    return strGuid;
+}
+
+bool PackageManagerCorePrivate::hasUninstallEntry(const QString &targetDirectory)
+{
+    QString guid = guidInstalled(targetDirectory);
+    if (guid.isEmpty()) {
+        return false;
+    }
+
+    m_data.setValue(scProductUUID, guid);
+
+    QString  regPath = registerPath();
+
+    qDebug() << "registry path: " << regPath;
+    QSettingsWrapper settings(regPath, QSettingsWrapper::NativeFormat);
+
+    QString strUninstallEntry = settings.value(QLatin1String("UninstallString")).toString();
+
+    qDebug() << "uninstall entry in registry: " << strUninstallEntry;
+
+    return ! strUninstallEntry.isEmpty();
+}
+#endif
+
 void PackageManagerCorePrivate::callBeginInstallation(const QList<Component*> &componentList)
 {
     foreach (Component *component, componentList)
@@ -1019,6 +1070,19 @@ void PackageManagerCorePrivate::registerPathsForUninstallation(
     }
 }
 
+#ifdef Q_CC_MINGW
+static bool moveTempFile(QTemporaryFile &src, const QString &newpath, QString &errmsg)
+{
+    src.close();
+    QFile filesrc(src.fileName());
+    if (!filesrc.copy(newpath)) {
+        errmsg = filesrc.errorString();
+        return false;
+    }
+    return true;
+}
+#endif
+
 void PackageManagerCorePrivate::writeMaintenanceToolBinary(QFile *const input, qint64 size, bool writeBinaryLayout)
 {
     QString maintenanceToolRenamedName = maintenanceToolName() + QLatin1String(".new");
@@ -1059,12 +1123,45 @@ void PackageManagerCorePrivate::writeMaintenanceToolBinary(QFile *const input, q
                     dummy.errorString()));
             }
         }
+#ifdef Q_CC_MINGW
+    QString datapath(resourcePath.filePath(maintenanceToolName()));
+    datapath.replace(QLatin1String(".exe"), QLatin1String(".dat"));
+    qDebug() << "creating data file: " << datapath;
+    QString errmsg;
+#ifdef CUSTOM_IFW_FEATURE
+    QFile fdst(datapath);
+    if (fdst.exists()) {
+        fdst.remove();
+    }
+#endif
+    if (! moveTempFile(dataOut, datapath, errmsg)) {
+        qDebug() << "failed to write installer data.";
+        throw Error(tr("Cannot write maintenance tool data to %1: %2").arg(datapath, errmsg));
+    }
+    QFile datafile(datapath);
+    datafile.setPermissions(datafile.permissions() | QFile::WriteUser | QFile::ReadGroup
+            | QFile::ReadOther);
 
+#else
+#if 0
         if (!dataOut.rename(resourcePath.filePath(QLatin1String("installer.dat")))) {
             throw Error(tr("Cannot write maintenance tool data to %1: %2").arg(dataOut.fileName(),
                 dataOut.errorString()));
         }
         setDefaultFilePermissions(&dataOut, DefaultFilePermissions::NonExecutable);
+#else
+	QString errmsg;
+	if (! moveTempFile(dataOut, resourcePath.filePath(QLatin1String("installer.dat")), errmsg)) {
+            throw Error(tr("Cannot write maintenance tool data to %1: %2").arg(dataOut.fileName(),
+                errmsg));
+        }
+        dataOut.setAutoRemove(false);
+        dataOut.setPermissions(dataOut.permissions() | QFile::WriteUser | QFile::ReadGroup
+            | QFile::ReadOther);
+#endif
+
+#endif
+
     }
 
     {
@@ -1074,12 +1171,19 @@ void PackageManagerCorePrivate::writeMaintenanceToolBinary(QFile *const input, q
                 dummy.errorString()));
         }
     }
-
+#ifdef Q_CC_MINGW
+    QString errstring;
+    qDebug() << "move temp file: " << out.fileName() << " -> " << maintenanceToolRenamedName;
+    if (!moveTempFile(out, maintenanceToolRenamedName, errstring)) {
+        throw Error(tr("Cannot write maintenance tool to \"%1\": %2").arg(maintenanceToolRenamedName,
+            errstring));
+    }
+#else
     if (!out.copy(maintenanceToolRenamedName)) {
         throw Error(tr("Cannot write maintenance tool to \"%1\": %2").arg(maintenanceToolRenamedName,
             out.errorString()));
     }
-
+#endif
     QFile mt(maintenanceToolRenamedName);
     if (setDefaultFilePermissions(&mt, DefaultFilePermissions::Executable))
         qDebug() << "Wrote permissions for maintenance tool.";
@@ -1369,12 +1473,30 @@ void PackageManagerCorePrivate::writeMaintenanceTool(OperationList performedOper
                 throw Error(tr("Cannot remove data file \"%1\": %2").arg(dummy.fileName(),
                     dummy.errorString()));
             }
-
+#ifdef Q_CC_MINGW
+            QString errstring;
+            qDebug() << "moving file: " << file.fileName() << " -> " << dataFile + QLatin1String(".new");
+            if (! moveTempFile(file, dataFile + QLatin1String(".new"), errstring)) {
+                throw Error(tr("Cannot write maintenance tool binary data to %1: %2")
+                    .arg(file.fileName(), errstring));
+            }
+            QFile movedFile(dataFile + QLatin1String(".new"));
+            movedFile.setPermissions(file.permissions() | QFile::WriteUser | QFile::ReadGroup
+                | QFile::ReadOther);
+#else
             if (!file.rename(dataFile + QLatin1String(".new"))) {
                 throw Error(tr("Cannot write maintenance tool binary data to %1: %2")
                     .arg(file.fileName(), file.errorString()));
             }
+#if 0 // original
             setDefaultFilePermissions(&file, DefaultFilePermissions::NonExecutable);
+#else // CIFW
+            file.setAutoRemove(false);
+            file.setPermissions(file.permissions() | QFile::WriteUser | QFile::ReadGroup
+                | QFile::ReadOther);
+#endif // 0
+	    
+#endif
         } catch (const Error &/*error*/) {
             if (!newBinaryWritten) {
                 newBinaryWritten = true;
@@ -1467,6 +1589,10 @@ bool PackageManagerCorePrivate::runInstaller()
             if (!directoryWritable(targetDir()))
                 adminRightsGained = m_core->gainAdminRights();
         }
+
+#if defined(Q_OS_WIN) && defined(CUSTOM_IFW_FEATURE)
+        m_bSkipRegisterUninstaller = hasUninstallEntry(target);
+#endif
 
         // add the operation to create the target directory
         Operation *mkdirOp = createOwnedOperation(QLatin1String("Mkdir"));
@@ -2030,13 +2156,30 @@ void PackageManagerCorePrivate::deleteMaintenanceTool()
     }
 }
 
+inline static QString quotePath(const QString &path)
+{
+  if (path.contains(QLatin1String(" "))) {
+    return QLatin1String("\"") + path + QLatin1String("\"");
+  }
+  return path;
+}
+
 void PackageManagerCorePrivate::registerMaintenanceTool()
 {
 #ifdef Q_OS_WIN
+#ifdef CUSTOM_IFW_FEATURE
+// comment out, because if already installed, we have old GUID set into m_data(in hasUninstallEntry())...
+//   -> registerPath() returns correct(old) path.
+// It is better to overwrite registry entry because version number may be changed.
+//
+//    if (m_bSkipRegisterUninstaller) {
+//        return;
+//    }
+#endif
     QSettingsWrapper settings(registerPath(), QSettingsWrapper::NativeFormat);
     settings.setValue(scDisplayName, m_data.value(QLatin1String("ProductName")));
     settings.setValue(QLatin1String("DisplayVersion"), m_data.value(QLatin1String("ProductVersion")));
-    const QString maintenanceTool = QDir::toNativeSeparators(maintenanceToolName());
+    const QString maintenanceTool = quotePath(QDir::toNativeSeparators(maintenanceToolName()));
     settings.setValue(QLatin1String("DisplayIcon"), maintenanceTool);
     settings.setValue(scPublisher, m_data.value(scPublisher));
     settings.setValue(QLatin1String("UrlInfoAbout"), m_data.value(QLatin1String("Url")));

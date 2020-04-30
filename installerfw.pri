@@ -131,7 +131,6 @@ DEFINES += NOMINMAX QT_NO_CAST_FROM_ASCII QT_STRICT_ITERATORS QT_USE_QSTRINGBUIL
            IFW_VERSION_STR_WIN32=$$IFW_VERSION_STR_WIN32 \
            IFW_VERSION_WIN32=$$IFW_VERSION_WIN32
 DEFINES += IFW_REPOSITORY_FORMAT_VERSION=$$IFW_REPOSITORY_FORMAT_VERSION
-
 LIBS += -l7z
 win32-g++*: LIBS += -lmpr -luuid
 
@@ -139,4 +138,14 @@ equals(TEMPLATE, app) {
     msvc:POST_TARGETDEPS += $$IFW_LIB_PATH/installer.lib $$IFW_LIB_PATH/7z.lib
     win32-g++*:POST_TARGETDEPS += $$IFW_LIB_PATH/libinstaller.a $$IFW_LIB_PATH/lib7z.a
     unix:POST_TARGETDEPS += $$IFW_LIB_PATH/libinstaller.a $$IFW_LIB_PATH/lib7z.a
+}
+
+CIFW {
+DEFINES += CUSTOM_IFW_FEATURE
+}
+
+7ZIP_ST {
+# multithread 7zip processing causes memory corruption(may be free()ing multiple times).
+# setting _7ZIP_ST makes 7zip processing in single thread, but it takes so long time.
+DEFINES += _7ZIP_ST
 }
